@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Jogo de Plataformas Dinâmicas</title>
+<title>Jogo de Plataformas Mobile</title>
 <style>
 body, html { margin:0; padding:0; overflow:hidden; background:#111; font-family:Arial, sans-serif; }
 canvas { display:block; background:#111; }
 #score { position:absolute; top:10px; left:50%; transform:translateX(-50%); color:#0ff; font-size:30px; font-weight:bold; }
 #mobileControls { display:flex; position:absolute; bottom:20px; width:100%; justify-content:space-between; padding:0 30px; }
 #joystick, #jumpBtn { width:80px; height:80px; border-radius:50%; background:rgba(255,255,255,0.2); display:flex; justify-content:center; align-items:center; touch-action:none; }
-#joystickInner { width:40px; height:40px; background:rgba(255,255,255,0.5); border-radius:50%; position:relative; left:20px; top:20px; }
+#joystickInner { width:40px; height:40px; background:rgba(255,255,255,0.5); border-radius:50%; position:relative; }
 #jumpBtn { background:rgba(255,255,0,0.6); font-size:40px; line-height:80px; color:#000; text-align:center; }
 </style>
 </head>
@@ -37,8 +37,15 @@ const gravity = 0.7, jumpForce = -12;
 
 // ===== Plataformas =====
 let platforms = [];
-function createPlatform(x, y, w=100, h=20){ platforms.push({x, y, w, h, active:true}); }
-for(let i=0;i<5;i++){ createPlatform(i*150, canvas.height-50 - i*50); }
+function createPlatform(x, y, w=100, h=20, color="#0ff"){ platforms.push({x,y,w,h,active:true,color}); }
+
+// Plataforma inicial branca fixa
+createPlatform(canvas.width/2 - 50, canvas.height-50, 100, 20, "#fff");
+
+// Plataformas iniciais azuis (não caem até começar)
+for(let i=0;i<5;i++){
+  createPlatform(i*150+100, canvas.height-150 - i*50);
+}
 
 // ===== Câmera =====
 let camera = {x:0, y:0};
@@ -52,14 +59,22 @@ document.addEventListener("keyup", e=>{ keys[e.key] = false; });
 let mobileDir = 0;
 document.getElementById("jumpBtn").addEventListener("touchstart", ()=>{ if(player.onGround) player.vy = jumpForce; });
 const joystick = document.getElementById("joystick");
-let joystickActive=false,startX=0;
-joystick.addEventListener("touchstart",e=>{ joystickActive=true; startX=e.touches[0].clientX; });
-joystick.addEventListener("touchmove",e=>{
+const joystickInner = document.getElementById("joystickInner");
+let joystickActive=false, startX=0, startY=0;
+joystick.addEventListener("touchstart", e=>{
+  joystickActive=true;
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
+});
+joystick.addEventListener("touchmove", e=>{
   if(!joystickActive) return;
   let dx = e.touches[0].clientX - startX;
   mobileDir = dx < -10 ? -1 : dx > 10 ? 1 : 0;
 });
-joystick.addEventListener("touchend", ()=>{ joystickActive=false; mobileDir=0; document.getElementById("joystickInner").style.left="20px"; });
+joystick.addEventListener("touchend", ()=>{
+  joystickActive=false;
+  mobileDir=0;
+});
 
 // ===== Pontuação =====
 let score = 0;
@@ -90,29 +105,34 @@ function loop(){
   // Atualiza pontuação
   if(player.y < maxY){ score++; maxY = player.y; document.getElementById("score").innerText = "Pontos: " + score; }
 
-  // Limite da tela (reinício)
-  if(player.y>canvas.height){
-    player.x=50; player.y=0; player.vx=0; player.vy=0;
-    platforms=[]; for(let i=0;i<5;i++) createPlatform(i*150, canvas.height-50 - i*50);
-    score = 0; maxY = player.y;
+  // Reinício quando cai
+  if(player.y > canvas.height){
+    player.x = canvas.width/2 - 50;
+    player.y = canvas.height - 80;
+    player.vx=0; player.vy=0;
+    // Reset plataformas azuis
+    platforms = platforms.filter(p => p.color!="#0ff"); // remove plataformas caídas
+    for(let i=0;i<5;i++){
+      createPlatform(i*150+100, canvas.height-150 - i*50);
+    }
+    score=0; maxY = player.y;
     document.getElementById("score").innerText = "Pontos: " + score;
   }
 
-  // Atualiza plataformas (caem mais rápido)
+  // Atualiza plataformas azuis (caem quando player passa)
   platforms.forEach(p=>{
-    if(player.x > p.x + p.w/2 && p.active){
-      p.active=false; 
-      // anima queda rápida
+    if(p.color==="#0ff" && player.x > p.x + p.w/2 && p.active){
+      p.active=false;
       let fallInterval = setInterval(()=>{
-        p.y += 10; // velocidade da queda aumentada
+        p.y += 10;
         if(p.y > canvas.height){ clearInterval(fallInterval); }
       }, 20);
     }
   });
 
   // Gera novas plataformas
-  if(platforms.length<5){
-    let last = platforms[platforms.length-1];
+  if(platforms.filter(p=>p.color==="#0ff").length < 5){
+    let last = platforms.filter(p=>p.color==="#0ff").pop();
     let x = last ? last.x + Math.random()*150 + 50 : 200;
     let y = canvas.height - Math.random()*150 -50;
     createPlatform(x,y);
@@ -126,21 +146,20 @@ function loop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.save();
   ctx.translate(-camera.x, -camera.y);
-  
+
   // Plataformas
   platforms.forEach(p=>{
     if(p.active){
-      ctx.fillStyle="#0ff";
+      ctx.fillStyle = p.color;
       ctx.fillRect(p.x,p.y,p.w,p.h);
     }
   });
 
   // Player
-  ctx.fillStyle="#ff0";
+  ctx.fillStyle = "#ff0";
   ctx.fillRect(player.x,player.y,player.w,player.h);
 
   ctx.restore();
-
   requestAnimationFrame(loop);
 }
 
