@@ -68,10 +68,10 @@ window.addEventListener('resize',resizeCanvas); resizeCanvas();
 // ===== Player =====
 let player={x:50,y:0,w:30,h:30,vx:0,vy:0,onGround:false};
 const gravity=0.7,jumpForce=-13;
-let camera={x:0,y:0};
+let camera={x:0,y:0},shake=0;
 let keys={},mobileDir=0;
 
-// ===== Plataformas, spikes e void =====
+// ===== Plataformas, spikes, void =====
 let platforms=[],spikes=[],goal={x:0,y:0,w:40,h:40};
 let currentLevel=0,gameFinished=false;
 
@@ -79,23 +79,36 @@ let currentLevel=0,gameFinished=false;
 let aiMessage="",aiTimer=0;
 function showAIMessage(msg){ aiMessage=msg; aiTimer=250; }
 
-// ===== Geração das fases =====
+// ===== Mensagens cruéis =====
+const cruelMessages=[
+  "HAHAHA! Sério que você caiu de novo?",
+  "Você é mesmo péssimo nisso!",
+  "Olha o seu corpo estúpido no chão…",
+  "Eu até começo a sentir pena… mas não!",
+  "Mais uma vez, recorde de fracassos!",
+  "Não se preocupe, o void te ama!",
+  "Tente de novo, você vai falhar de novo!",
+  "AHAHAHA, olha só esse desastre humano!",
+  "Patético… você não merece continuar!",
+  "Cada morte sua é uma piada nova pra mim 😈"
+];
+
+// ===== Fases =====
 const levels=[];
 for(let lvl=0;lvl<40;lvl++){
   let pls=[],spks=[];
-  pls.push({x:0,y:canvas.height-20,w:canvas.width*2,fake:false,moving:false,dx:0,dy:0,breakable:false,disappear:false,visible:true});
+  pls.push({x:0,y:canvas.height-20,w:canvas.width*3,fake:false,moving:false,dx:0,dy:0,breakable:false,disappear:false,visible:true});
   let y=canvas.height-120,x=50;
-  while(x<canvas.width*2-50){
-    let w=Math.random()*40+20, gap=Math.random()*60+30;
+  while(x<canvas.width*3-50){
+    let w=Math.random()*60+30, gap=Math.random()*50+20;
     let fake=Math.random()<0.3, moving=Math.random()<0.25;
     let breakable=Math.random()<0.25, disappear=Math.random()<0.2;
-    let dx=moving?(Math.random()*6-3):0;
-    let dy=moving?(Math.random()*2-1):0;
+    let dx=moving?(Math.random()*6-3):0, dy=moving?(Math.random()*2-1):0;
     pls.push({x,y,w,h:20,fake,moving,dx,dy,breakable,disappear,visible:true});
-    if(Math.random()<0.15) spks.push({x:x+Math.random()*w-5,y:y+20,w:10,h:10});
+    if(Math.random()<0.2) spks.push({x:x+Math.random()*w-5,y:y+20,w:10,h:10});
     x+=w+gap; y-=Math.random()*80;if(y<50)y=50;
   }
-  let goalX=canvas.width*2-60, goalY=pls[pls.length-1].y-40;
+  let goalX=canvas.width*3-60, goalY=pls[pls.length-1].y-40;
   levels.push({platforms:pls,spikes:spks,goal:{x:goalX,y:goalY,w:40,h:40}});
 }
 
@@ -127,13 +140,14 @@ function update(){
       if(p.disappear)p.visible=false;
     }
     if(p.moving){p.x+=p.dx;p.y+=p.dy;
-      if(p.x<0||p.x+p.w>canvas.width*2)p.dx*=-1;
+      if(p.x<0||p.x+p.w>canvas.width*3)p.dx*=-1;
       if(p.y<50||p.y>canvas.height-50)p.dy*=-1;
     }
   });
 
-  camera.x=player.x-canvas.width/2+player.w/2;
-  camera.y=player.y-canvas.height/2+player.h/2;
+  camera.x=player.x-canvas.width/2+player.w/2 + (Math.random()*shake-shake/2);
+  camera.y=player.y-canvas.height/2+player.h/2 + (Math.random()*shake-shake/2);
+  if(shake>0) shake--;
 }
 
 // ===== Checa morte =====
@@ -144,20 +158,9 @@ function checkDeath(){
     if(player.x<s.x+s.w && player.x+player.w>s.x && player.y<s.y+s.h && player.y+player.h>s.y) dead=true;
   });
   if(dead){
-    const cruelMessages=[
-      "HAHAHA! Sério que você caiu de novo?",
-      "Você é mesmo péssimo nisso!",
-      "Olha o seu corpo estúpido no chão…",
-      "Eu até começo a sentir pena… mas não!",
-      "Mais uma vez, recorde de fracassos!",
-      "Não se preocupe, o void te ama!",
-      "Tente de novo, você vai falhar de novo!",
-      "AHAHAHA, olha só esse desastre humano!",
-      "Patético… você não merece continuar!",
-      "Cada morte sua é uma piada nova pra mim 😈"
-    ];
     const msg=cruelMessages[Math.floor(Math.random()*cruelMessages.length)];
     showAIMessage(msg);
+    shake=20;
     setTimeout(()=>{loadLevel(currentLevel);},800);
   }
 }
@@ -203,9 +206,7 @@ const joystick=document.getElementById("joystick");
 const joystickInner=document.getElementById("joystickInner");
 let joystickActive=false, startX=0, startY=0;
 
-joystick.addEventListener("touchstart",e=>{
-  joystickActive=true; startX=e.touches[0].clientX; startY=e.touches[0].clientY;
-});
+joystick.addEventListener("touchstart",e=>{ joystickActive=true; startX=e.touches[0].clientX; startY=e.touches[0].clientY; });
 joystick.addEventListener("touchmove",e=>{
   if(!joystickActive)return;
   let dx=e.touches[0].clientX-startX;
