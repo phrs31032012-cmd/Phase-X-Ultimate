@@ -5,12 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jogo de Plataformas Dinâmicas</title>
 <style>
-body, html {
-  margin:0; padding:0; overflow:hidden;
-  background:#111; font-family:Arial, sans-serif;
-}
+body, html { margin:0; padding:0; overflow:hidden; background:#111; font-family:Arial, sans-serif; }
 canvas { display:block; background:#111; }
-#mobileControls { display:none; position:absolute; bottom:20px; width:100%; display:flex; justify-content:space-between; padding:0 30px; }
+#score { position:absolute; top:10px; left:50%; transform:translateX(-50%); color:#0ff; font-size:30px; font-weight:bold; }
+#mobileControls { display:flex; position:absolute; bottom:20px; width:100%; justify-content:space-between; padding:0 30px; }
 #joystick, #jumpBtn { width:80px; height:80px; border-radius:50%; background:rgba(255,255,255,0.2); display:flex; justify-content:center; align-items:center; touch-action:none; }
 #joystickInner { width:40px; height:40px; background:rgba(255,255,255,0.5); border-radius:50%; position:relative; left:20px; top:20px; }
 #jumpBtn { background:rgba(255,255,0,0.6); font-size:40px; line-height:80px; color:#000; text-align:center; }
@@ -18,6 +16,7 @@ canvas { display:block; background:#111; }
 </head>
 <body>
 
+<div id="score">Pontos: 0</div>
 <canvas id="gameCanvas"></canvas>
 <div id="mobileControls">
   <div id="joystick"><div id="joystickInner"></div></div>
@@ -38,12 +37,8 @@ const gravity = 0.7, jumpForce = -12;
 
 // ===== Plataformas =====
 let platforms = [];
-function createPlatform(x, y, w=100, h=20){
-  platforms.push({x, y, w, h, active:true});
-}
-for(let i=0;i<5;i++){
-  createPlatform(i*150, canvas.height-50 - i*50);
-}
+function createPlatform(x, y, w=100, h=20){ platforms.push({x, y, w, h, active:true}); }
+for(let i=0;i<5;i++){ createPlatform(i*150, canvas.height-50 - i*50); }
 
 // ===== Câmera =====
 let camera = {x:0, y:0};
@@ -61,10 +56,14 @@ let joystickActive=false,startX=0;
 joystick.addEventListener("touchstart",e=>{ joystickActive=true; startX=e.touches[0].clientX; });
 joystick.addEventListener("touchmove",e=>{
   if(!joystickActive) return;
-  let dx = e.touches[0].clientX-startX;
-  mobileDir = dx<-10?-1:dx>10?1:0;
+  let dx = e.touches[0].clientX - startX;
+  mobileDir = dx < -10 ? -1 : dx > 10 ? 1 : 0;
 });
-joystick.addEventListener("touchend", ()=>{ joystickActive=false; mobileDir=0; });
+joystick.addEventListener("touchend", ()=>{ joystickActive=false; mobileDir=0; document.getElementById("joystickInner").style.left="20px"; });
+
+// ===== Pontuação =====
+let score = 0;
+let maxY = player.y;
 
 // ===== Loop principal =====
 function loop(){
@@ -88,12 +87,27 @@ function loop(){
     }
   });
 
-  // Limite da tela
-  if(player.y>canvas.height) { player.x=50; player.y=0; player.vx=0; player.vy=0; platforms=[]; for(let i=0;i<5;i++) createPlatform(i*150, canvas.height-50 - i*50); }
+  // Atualiza pontuação
+  if(player.y < maxY){ score++; maxY = player.y; document.getElementById("score").innerText = "Pontos: " + score; }
 
-  // Atualiza plataformas (caem quando o player passa)
+  // Limite da tela (reinício)
+  if(player.y>canvas.height){
+    player.x=50; player.y=0; player.vx=0; player.vy=0;
+    platforms=[]; for(let i=0;i<5;i++) createPlatform(i*150, canvas.height-50 - i*50);
+    score = 0; maxY = player.y;
+    document.getElementById("score").innerText = "Pontos: " + score;
+  }
+
+  // Atualiza plataformas (caem mais rápido)
   platforms.forEach(p=>{
-    if(player.x > p.x + p.w/2 && p.active) p.active=false;
+    if(player.x > p.x + p.w/2 && p.active){
+      p.active=false; 
+      // anima queda rápida
+      let fallInterval = setInterval(()=>{
+        p.y += 10; // velocidade da queda aumentada
+        if(p.y > canvas.height){ clearInterval(fallInterval); }
+      }, 20);
+    }
   });
 
   // Gera novas plataformas
